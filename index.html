@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA Tags -->
+    <meta name="theme-color" content="#ffffff"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Anki Cards">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+
+    <title>Visualizador de Flashcards Anki</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .scene {
+            perspective: 1000px;
+        }
+        .card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+        }
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card__face {
+            position: absolute;
+            height: 100%;
+            width: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            overflow-y: auto;
+        }
+        .card__face--front {
+            background-color: white;
+        }
+        .card__face--back {
+            background-color: #f9fafb; /* gray-50 */
+            transform: rotateY(180deg);
+        }
+        .card__content img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 0.5rem;
+            margin: 0.5rem auto;
+            display: block;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div id="app-container" class="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-6 md:p-8 transition-all duration-500">
+        
+        <!-- Upload Section -->
+        <div id="upload-section">
+            <h1 class="text-3xl font-bold text-center text-gray-700">Revisão de Flashcards Anki</h1>
+            <p class="text-center text-gray-500 mt-2 mb-6">Carregue um arquivo <strong>.apkg</strong> para iniciar sua sessão de estudo.</p>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-gray-50 transition-colors" onclick="document.getElementById('apkg-input').click()">
+                <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                </svg>
+                <p class="mt-2 text-sm text-gray-600">
+                    <span class="font-semibold text-blue-600">Clique para carregar</span> ou arraste e solte o arquivo
+                </p>
+                <p class="text-xs text-gray-500 mt-1">Arquivo .apkg do Anki</p>
+                <input type="file" id="apkg-input" class="hidden" accept=".apkg">
+            </div>
+        </div>
+
+        <!-- Loading Section -->
+        <div id="loading-section" class="hidden text-center py-16">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+            <p class="mt-6 text-lg font-semibold text-gray-600">Processando seu baralho...</p>
+            <p class="text-sm text-gray-500">Isso pode levar um momento.</p>
+        </div>
+
+        <!-- Error Section -->
+        <div id="error-section" class="hidden text-center py-16">
+            <svg class="mx-auto h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 class="mt-4 text-2xl font-bold text-red-700">Ocorreu um Erro</h2>
+            <p id="error-message" class="mt-2 text-gray-600"></p>
+            <button onclick="window.location.reload()" class="mt-6 bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors">Tentar Novamente</button>
+        </div>
+
+        <!-- Flashcard Section -->
+        <div id="flashcard-section" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-700">Flashcards</h2>
+                <div class="text-lg font-semibold bg-gray-200 text-gray-700 rounded-full px-4 py-1">
+                    <span id="current-card">1</span> / <span id="total-cards">0</span>
+                </div>
+            </div>
+            
+            <div class="scene h-80">
+                <div id="card" class="card">
+                    <div class="card__face card__face--front">
+                        <div id="card-front" class="card__content text-2xl font-semibold"></div>
+                    </div>
+                    <div class="card__face card__face--back">
+                        <div id="card-back" class="card__content text-xl"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="card-instructions" class="text-center text-gray-500 mt-4 font-semibold">Clique no cartão para ver a resposta</div>
+        </div>
+        
+        <!-- Results Section -->
+        <div id="results-section" class="hidden text-center py-16">
+            <h1 class="text-3xl font-bold text-gray-700">Sessão completa!</h1>
+            <p class="text-lg text-gray-600 mt-2">Você revisou todos os cartões deste baralho.</p>
+            <button onclick="window.location.reload()" class="mt-8 bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors text-lg">Carregar outro baralho</button>
+        </div>
+
+    </div>
+
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    
+        const uploadSection = document.getElementById('upload-section');
+        const loadingSection = document.getElementById('loading-section');
+        const errorSection = document.getElementById('error-section');
+        const errorMessageEl = document.getElementById('error-message');
+        const flashcardSection = document.getElementById('flashcard-section');
+        const resultsSection = document.getElementById('results-section');
+        const apkgInput = document.getElementById('apkg-input');
+        const cardEl = document.getElementById('card');
+        
+        let flashcards = [];
+        let mediaFiles = {};
+        let currentCardIndex = 0;
+
+        // Initialize sql.js
+        let db;
+        const config = {
+            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+        };
+        
+        async function initSql() {
+            try {
+                const SQL = await initSqlJs(config);
+                return SQL;
+            } catch (err) {
+                 showError("Não foi possível carregar o componente do banco de dados.");
+                 console.error(err);
+            }
+        }
+        const SQLPromise = initSql();
+
+
+        apkgInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                await handleFile(file);
+            }
+        });
+
+        function showError(message) {
+            uploadSection.classList.add('hidden');
+            loadingSection.classList.add('hidden');
+            flashcardSection.classList.add('hidden');
+            errorMessageEl.textContent = message;
+            errorSection.classList.remove('hidden');
+        }
+
+        async function handleFile(file) {
+            uploadSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+            
+            try {
+                const zip = await JSZip.loadAsync(file);
+                
+                // Find database file
+                const dbFile = zip.file('collection.anki2') || zip.file('collection.anki21');
+                if (!dbFile) {
+                    throw new Error('Arquivo de banco de dados (collection.anki2 or .anki21) não encontrado no .apkg.');
+                }
+                const dbData = await dbFile.async('uint8array');
+
+                // Load media files
+                const mediaJsonFile = zip.file('media');
+                if (mediaJsonFile) {
+                    const mediaJson = await mediaJsonFile.async('string');
+                    const mediaMapping = JSON.parse(mediaJson);
+                    for(const key in mediaMapping) {
+                        const mediaFile = zip.file(key);
+                        if(mediaFile) {
+                             const blob = await mediaFile.async('blob');
+                             mediaFiles[mediaMapping[key]] = URL.createObjectURL(blob);
+                        }
+                    }
+                }
+                
+                const SQL = await SQLPromise;
+                db = new SQL.Database(dbData);
+                
+                // Query notes from the database. This gets the raw front/back data.
+                const res = db.exec("SELECT flds FROM notes");
+                if (!res || res.length === 0 || !res[0].values) {
+                     throw new Error('Nenhuma nota encontrada no banco de dados do Anki.');
+                }
+
+                flashcards = res[0].values.map(row => {
+                    const fields = row[0].split('\x1f');
+                    return {
+                        front: fields[0],
+                        back: fields[1] || fields[0] // Fallback in case there's no back field
+                    };
+                });
+
+                if (flashcards.length === 0) {
+                    throw new Error('Nenhum flashcard válido foi extraído.');
+                }
+                
+                startReview();
+
+            } catch (err) {
+                console.error('Error processing .apkg file:', err);
+                showError(err.message || 'Ocorreu um erro ao processar o arquivo .apkg.');
+            }
+        }
+        
+        function startReview() {
+            loadingSection.classList.add('hidden');
+            flashcardSection.classList.remove('hidden');
+            document.getElementById('total-cards').textContent = flashcards.length;
+            renderCard(currentCardIndex);
+        }
+
+        function renderCard(index) {
+            if (index >= flashcards.length) {
+                showResults();
+                return;
+            }
+
+            const card = flashcards[index];
+            const cardFrontEl = document.getElementById('card-front');
+            const cardBackEl = document.getElementById('card-back');
+
+            cardFrontEl.innerHTML = processContent(card.front);
+            cardBackEl.innerHTML = processContent(card.back);
+
+            document.getElementById('current-card').textContent = index + 1;
+            cardEl.classList.remove('is-flipped');
+            document.getElementById('card-instructions').textContent = 'Clique no cartão para ver a resposta';
+        }
+        
+        function processContent(html) {
+             // Replace Anki's image syntax with standard HTML img tags
+            return html.replace(/<img src="(.+?)"\s*\/?>/g, (match, src) => {
+                if (mediaFiles[src]) {
+                    return `<img src="${mediaFiles[src]}" alt="${src}">`;
+                }
+                return `[Imagem ${src} não encontrada]`;
+            });
+        }
+        
+        function showResults() {
+             flashcardSection.classList.add('hidden');
+             resultsSection.classList.remove('hidden');
+        }
+
+        cardEl.addEventListener('click', () => {
+            const isFlipped = cardEl.classList.contains('is-flipped');
+            if (isFlipped) {
+                // Move to next card
+                currentCardIndex++;
+                renderCard(currentCardIndex);
+            } else {
+                // Flip the card
+                cardEl.classList.add('is-flipped');
+                document.getElementById('card-instructions').textContent = 'Clique novamente para o próximo cartão';
+            }
+        });
+    </script>
+</body>
+</html>
