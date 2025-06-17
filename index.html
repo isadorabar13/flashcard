@@ -372,27 +372,3 @@
     </script>
 </body>
 </html>
-
-            });
-        }
-        
-        function showResults() {
-             flashcardSection.classList.add('hidden');
-             resultsSection.classList.remove('hidden');
-        }
-
-        cardEl.addEventListener('click', () => {
-            const isFlipped = cardEl.classList.contains('is-flipped');
-            if (isFlipped) {
-                // Move to next card
-                currentCardIndex++;
-                renderCard(currentCardIndex);
-            } else {
-                // Flip the card
-                cardEl.classList.add('is-flipped');
-                document.getElementById('card-instructions').textContent = 'Clique novamente para o próximo cartão';
-            }
-        });
-    </script>
-</body>
-</html>
