@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- PWA Tags -->
-    <meta name="theme-color" content="#ffffff"/>
+    <meta name="theme-color" content="#3b82f6"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Anki Cards">
@@ -15,15 +15,17 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            background-color: #f0f4f8;
+            background-image: radial-gradient(circle at top right, #cce4ff, #f0f4f8 50%);
         }
         .scene {
-            perspective: 1000px;
+            perspective: 1200px;
         }
         .card {
             width: 100%;
@@ -42,250 +44,335 @@
             width: 100%;
             backface-visibility: hidden;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             padding: 2rem;
             text-align: center;
-            border: 1px solid #e5e7eb;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
             overflow-y: auto;
         }
         .card__face--front {
             background-color: white;
+            border: 1px solid #e5e7eb;
         }
         .card__face--back {
-            background-color: #f9fafb; /* gray-50 */
+            background-color: #f8fafc; /* slate-50 */
+            border: 1px solid #e2e8f0; /* slate-200 */
             transform: rotateY(180deg);
         }
         .card__content img {
             max-width: 100%;
             max-height: 200px;
-            border-radius: 0.5rem;
-            margin: 0.5rem auto;
+            border-radius: 0.75rem;
+            margin: 0.75rem auto;
             display: block;
         }
         .hidden {
             display: none;
         }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out;
+        }
+        .accordion-header.open + .accordion-content {
+            max-height: 1000px; /* Adjust as needed */
+        }
+        .chevron {
+            transition: transform 0.3s ease-in-out;
+        }
+        .accordion-header.open .chevron {
+            transform: rotate(90deg);
+        }
+        .btn-grad {
+            background-image: linear-gradient(to right, #3b82f6 0%, #22d3ee 51%, #3b82f6 100%);
+            transition: 0.5s;
+            background-size: 200% auto;
+            color: white;
+        }
+        .btn-grad:hover {
+            background-position: right center;
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-    <div id="app-container" class="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-6 md:p-8 transition-all duration-500">
+    <div id="app-container" class="w-full max-w-2xl bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl shadow-blue-100 p-6 md:p-8 transition-all duration-500">
         
         <!-- Upload Section -->
         <div id="upload-section">
-            <h1 class="text-3xl font-bold text-center text-gray-700">Revisão de Flashcards Anki</h1>
-            <p class="text-center text-gray-500 mt-2 mb-6">Carregue um arquivo <strong>.apkg</strong> para iniciar sua sessão de estudo.</p>
-            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-gray-50 transition-colors" onclick="document.getElementById('apkg-input').click()">
-                <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <h1 class="text-3xl font-extrabold text-center text-gray-800">Flashcards Anki</h1>
+            <p class="text-center text-gray-500 mt-2 mb-6">Carregue um ficheiro <strong>.apkg</strong> para começar a sua revisão.</p>
+            <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors" onclick="document.getElementById('apkg-input').click()">
+                 <svg class="mx-auto h-12 w-12 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                 </svg>
-                <p class="mt-2 text-sm text-gray-600">
-                    <span class="font-semibold text-blue-600">Clique para carregar</span> ou arraste e solte o arquivo
-                </p>
-                <p class="text-xs text-gray-500 mt-1">Arquivo .apkg do Anki</p>
+                <p class="mt-2 font-semibold text-blue-600">Clique para carregar</p>
+                <p class="text-xs text-gray-500 mt-1">ou arraste e solte o ficheiro</p>
                 <input type="file" id="apkg-input" class="hidden" accept=".apkg">
             </div>
         </div>
 
         <!-- Loading Section -->
         <div id="loading-section" class="hidden text-center py-16">
-            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-            <p class="mt-6 text-lg font-semibold text-gray-600">Processando seu baralho...</p>
-            <p class="text-sm text-gray-500">Isso pode levar um momento.</p>
+            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto"></div>
+            <p class="mt-6 text-lg font-semibold text-gray-600">A processar os seus baralhos...</p>
+        </div>
+
+        <!-- Deck Selection Section -->
+        <div id="deck-selection-section" class="hidden">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Escolha uma área para estudar</h2>
+            <div id="deck-list" class="space-y-2">
+                <!-- Accordion deck list will be inserted here -->
+            </div>
         </div>
 
         <!-- Error Section -->
         <div id="error-section" class="hidden text-center py-16">
-            <svg class="mx-auto h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <svg class="mx-auto h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             <h2 class="mt-4 text-2xl font-bold text-red-700">Ocorreu um Erro</h2>
             <p id="error-message" class="mt-2 text-gray-600"></p>
-            <button onclick="window.location.reload()" class="mt-6 bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors">Tentar Novamente</button>
+            <button onclick="window.location.reload()" class="mt-6 btn-grad font-bold py-2 px-6 rounded-lg">Tentar Novamente</button>
         </div>
 
         <!-- Flashcard Section -->
         <div id="flashcard-section" class="hidden">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-gray-700">Flashcards</h2>
+                 <button id="back-to-decks-btn" class="font-semibold text-blue-600 hover:text-blue-800 transition-colors p-2 rounded-lg hover:bg-blue-100">← Voltar</button>
                 <div class="text-lg font-semibold bg-gray-200 text-gray-700 rounded-full px-4 py-1">
                     <span id="current-card">1</span> / <span id="total-cards">0</span>
                 </div>
             </div>
             
-            <div class="scene h-80">
+            <div class="scene h-96">
                 <div id="card" class="card">
                     <div class="card__face card__face--front">
-                        <div id="card-front" class="card__content text-2xl font-semibold"></div>
+                        <div id="card-front" class="card__content text-2xl font-semibold text-gray-800"></div>
                     </div>
                     <div class="card__face card__face--back">
-                        <div id="card-back" class="card__content text-xl"></div>
+                        <div id="card-back" class="card__content text-xl text-gray-700"></div>
                     </div>
                 </div>
             </div>
             
-            <div id="card-instructions" class="text-center text-gray-500 mt-4 font-semibold">Clique no cartão para ver a resposta</div>
+             <div class="flex justify-between mt-6">
+                <button id="prev-btn" class="bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-lg hover:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Anterior</button>
+                <button id="next-btn" class="btn-grad font-bold py-3 px-6 rounded-lg">Próximo</button>
+            </div>
+            <div id="card-instructions" class="text-center text-gray-500 mt-4 font-semibold">Clique no cartão para virar</div>
         </div>
         
-        <!-- Results Section -->
-        <div id="results-section" class="hidden text-center py-16">
-            <h1 class="text-3xl font-bold text-gray-700">Sessão completa!</h1>
-            <p class="text-lg text-gray-600 mt-2">Você revisou todos os cartões deste baralho.</p>
-            <button onclick="window.location.reload()" class="mt-8 bg-blue-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors text-lg">Carregar outro baralho</button>
-        </div>
-
     </div>
 
     <script>
-        // Register service worker for PWA
+        // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js').then(registration => {
-                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                }, err => {
-                    console.log('ServiceWorker registration failed: ', err);
-                });
+                navigator.serviceWorker.register('./service-worker.js').catch(err => console.log('ServiceWorker registration failed: ', err));
             });
         }
     
-        const uploadSection = document.getElementById('upload-section');
-        const loadingSection = document.getElementById('loading-section');
-        const errorSection = document.getElementById('error-section');
-        const errorMessageEl = document.getElementById('error-message');
-        const flashcardSection = document.getElementById('flashcard-section');
-        const resultsSection = document.getElementById('results-section');
-        const apkgInput = document.getElementById('apkg-input');
-        const cardEl = document.getElementById('card');
-        
-        let flashcards = [];
-        let mediaFiles = {};
-        let currentCardIndex = 0;
-
-        // Initialize sql.js
-        let db;
-        const config = {
-            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+        // DOM Elements & State
+        const ui = {
+            upload: document.getElementById('upload-section'),
+            loading: document.getElementById('loading-section'),
+            error: document.getElementById('error-section'),
+            errorMessage: document.getElementById('error-message'),
+            deckSelection: document.getElementById('deck-selection-section'),
+            deckList: document.getElementById('deck-list'),
+            flashcard: document.getElementById('flashcard-section'),
+            card: document.getElementById('card'),
+            cardFront: document.getElementById('card-front'),
+            cardBack: document.getElementById('card-back'),
+            currentCard: document.getElementById('current-card'),
+            totalCards: document.getElementById('total-cards'),
+            prevBtn: document.getElementById('prev-btn'),
+            nextBtn: document.getElementById('next-btn'),
+            backToDecksBtn: document.getElementById('back-to-decks-btn'),
         };
+        const state = { flashcards: [], mediaFiles: {}, currentCardIndex: 0, db: null, deckHierarchy: {} };
+        const SQLPromise = initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}` });
         
-        async function initSql() {
-            try {
-                const SQL = await initSqlJs(config);
-                return SQL;
-            } catch (err) {
-                 showError("Não foi possível carregar o componente do banco de dados.");
-                 console.error(err);
-            }
+        // --- Event Listeners ---
+        document.getElementById('apkg-input').addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
+        ui.card.addEventListener('click', () => ui.card.classList.toggle('is-flipped'));
+        ui.prevBtn.addEventListener('click', () => navigateCard(-1));
+        ui.nextBtn.addEventListener('click', () => navigateCard(1));
+        ui.backToDecksBtn.addEventListener('click', () => switchView(ui.deckSelection));
+        
+        // --- Core Functions ---
+        function switchView(viewToShow) {
+            Object.values(ui).forEach(el => el.classList?.add('hidden'));
+            document.getElementById('app-container').classList.remove('hidden');
+            viewToShow.classList.remove('hidden');
         }
-        const SQLPromise = initSql();
-
-
-        apkgInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                await handleFile(file);
-            }
-        });
 
         function showError(message) {
-            uploadSection.classList.add('hidden');
-            loadingSection.classList.add('hidden');
-            flashcardSection.classList.add('hidden');
-            errorMessageEl.textContent = message;
-            errorSection.classList.remove('hidden');
+            ui.errorMessage.textContent = message;
+            switchView(ui.error);
         }
 
         async function handleFile(file) {
-            uploadSection.classList.add('hidden');
-            loadingSection.classList.remove('hidden');
-            
+            switchView(ui.loading);
             try {
                 const zip = await JSZip.loadAsync(file);
-                
-                // Find database file
                 const dbFile = zip.file('collection.anki2') || zip.file('collection.anki21');
-                if (!dbFile) {
-                    throw new Error('Arquivo de banco de dados (collection.anki2 or .anki21) não encontrado no .apkg.');
-                }
+                if (!dbFile) throw new Error('Ficheiro de base de dados (collection.anki2/.anki21) não encontrado.');
                 const dbData = await dbFile.async('uint8array');
 
-                // Load media files
                 const mediaJsonFile = zip.file('media');
                 if (mediaJsonFile) {
                     const mediaJson = await mediaJsonFile.async('string');
                     const mediaMapping = JSON.parse(mediaJson);
-                    for(const key in mediaMapping) {
+                    for (const key in mediaMapping) {
                         const mediaFile = zip.file(key);
-                        if(mediaFile) {
-                             const blob = await mediaFile.async('blob');
-                             mediaFiles[mediaMapping[key]] = URL.createObjectURL(blob);
-                        }
+                        if (mediaFile) state.mediaFiles[mediaMapping[key]] = URL.createObjectURL(await mediaFile.async('blob'));
                     }
                 }
                 
                 const SQL = await SQLPromise;
-                db = new SQL.Database(dbData);
+                state.db = new SQL.Database(dbData);
                 
-                // Query notes from the database. This gets the raw front/back data.
-                const res = db.exec("SELECT flds FROM notes");
-                if (!res || res.length === 0 || !res[0].values) {
-                     throw new Error('Nenhuma nota encontrada no banco de dados do Anki.');
-                }
-
-                flashcards = res[0].values.map(row => {
-                    const fields = row[0].split('\x1f');
-                    return {
-                        front: fields[0],
-                        back: fields[1] || fields[0] // Fallback in case there's no back field
-                    };
-                });
-
-                if (flashcards.length === 0) {
-                    throw new Error('Nenhum flashcard válido foi extraído.');
-                }
+                const decksResult = state.db.exec("SELECT decks FROM col");
+                if (!decksResult[0]?.values[0]) throw new Error("Não foi possível encontrar informações de baralhos.");
                 
-                startReview();
+                const decks = JSON.parse(decksResult[0].values[0][0]);
+                buildDeckHierarchy(decks);
+                renderDeckSelection();
 
             } catch (err) {
                 console.error('Error processing .apkg file:', err);
-                showError(err.message || 'Ocorreu um erro ao processar o arquivo .apkg.');
+                showError(err.message || 'Ocorreu um erro ao processar o ficheiro .apkg.');
             }
         }
         
-        function startReview() {
-            loadingSection.classList.add('hidden');
-            flashcardSection.classList.remove('hidden');
-            document.getElementById('total-cards').textContent = flashcards.length;
-            renderCard(currentCardIndex);
+        function buildDeckHierarchy(decks) {
+            state.deckHierarchy = {};
+            const sortedDecks = Object.values(decks).sort((a, b) => a.name.localeCompare(b.name));
+
+            for (const deck of sortedDecks) {
+                const path = deck.name.split('::');
+                let currentLevel = state.deckHierarchy;
+                
+                for (let i = 0; i < path.length; i++) {
+                    const part = path[i];
+                    if (!currentLevel[part]) {
+                        currentLevel[part] = { subDecks: {}, id: null };
+                    }
+                    if (i === path.length - 1) {
+                        currentLevel[part].id = deck.id;
+                    }
+                    currentLevel = currentLevel[part].subDecks;
+                }
+            }
+        }
+        
+        function renderDeckSelection() {
+            ui.deckList.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
+            function createDeckLevel(level, parentElement, levelIndex) {
+                for (const name in level) {
+                    const deck = level[name];
+                    const hasSubDecks = Object.keys(deck.subDecks).length > 0;
+
+                    const container = document.createElement('div');
+                    container.className = 'rounded-lg';
+                    
+                    const header = document.createElement('div');
+                    header.className = `accordion-header flex items-center justify-between w-full text-left p-3 font-semibold rounded-lg transition-colors cursor-pointer`;
+                    header.style.paddingLeft = `${0.75 + levelIndex * 1}rem`;
+                    header.innerHTML = `
+                        <span class="flex-grow">${name}</span>
+                        ${hasSubDecks ? `<svg class="chevron h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>` : ''}
+                    `;
+                    
+                    if (levelIndex === 0) {
+                        header.classList.add('bg-slate-100', 'hover:bg-slate-200');
+                    } else {
+                        header.classList.add('hover:bg-blue-50');
+                    }
+
+                    header.onclick = (e) => {
+                        e.stopPropagation();
+                        if (hasSubDecks) {
+                             header.classList.toggle('open');
+                        }
+                        if (deck.id) {
+                            startReview(deck.id);
+                        }
+                    };
+                    
+                    container.appendChild(header);
+
+                    if (hasSubDecks) {
+                        const content = document.createElement('div');
+                        content.className = 'accordion-content pl-2';
+                        createDeckLevel(deck.subDecks, content, levelIndex + 1);
+                        container.appendChild(content);
+                    }
+
+                    parentElement.appendChild(container);
+                }
+            }
+            
+            createDeckLevel(state.deckHierarchy, fragment, 0);
+            ui.deckList.appendChild(fragment);
+            switchView(ui.deckSelection);
         }
 
-        function renderCard(index) {
-            if (index >= flashcards.length) {
-                showResults();
+        function startReview(deckId) {
+            try {
+                const cardNidsResult = state.db.exec(`SELECT nid FROM cards WHERE did = ${deckId} OR odid = ${deckId}`);
+                if (!cardNidsResult[0]?.values.length) throw new Error("Este baralho não contém cartões.");
+
+                const nids = [...new Set(cardNidsResult[0].values.map(row => row[0]))];
+                const notesResult = state.db.exec(`SELECT flds FROM notes WHERE id IN (${nids.join(',')})`);
+                if (!notesResult[0]?.values.length) throw new Error("Não foi possível carregar o conteúdo dos cartões.");
+
+                state.flashcards = notesResult[0].values.map(row => ({ front: row[0].split('\x1f')[0], back: row[0].split('\x1f')[1] || row[0].split('\x1f')[0] }));
+                if (state.flashcards.length === 0) throw new Error('Nenhum flashcard válido foi extraído.');
+                
+                state.currentCardIndex = 0;
+                ui.totalCards.textContent = state.flashcards.length;
+                switchView(ui.flashcard);
+                renderCard();
+            } catch (err) { showError(err.message) }
+        }
+
+        function renderCard() {
+            if (state.currentCardIndex >= state.flashcards.length) {
+                switchView(ui.deckSelection); // Go back to deck selection when done
                 return;
             }
+            const card = state.flashcards[state.currentCardIndex];
+            ui.cardFront.innerHTML = processContent(card.front);
+            ui.cardBack.innerHTML = processContent(card.back);
+            ui.currentCard.textContent = state.currentCardIndex + 1;
+            ui.card.classList.remove('is-flipped');
+            ui.prevBtn.disabled = state.currentCardIndex === 0;
+            ui.nextBtn.textContent = state.currentCardIndex === state.flashcards.length - 1 ? "Finalizar" : "Próximo";
+        }
 
-            const card = flashcards[index];
-            const cardFrontEl = document.getElementById('card-front');
-            const cardBackEl = document.getElementById('card-back');
-
-            cardFrontEl.innerHTML = processContent(card.front);
-            cardBackEl.innerHTML = processContent(card.back);
-
-            document.getElementById('current-card').textContent = index + 1;
-            cardEl.classList.remove('is-flipped');
-            document.getElementById('card-instructions').textContent = 'Clique no cartão para ver a resposta';
+        function navigateCard(direction) {
+            const newIndex = state.currentCardIndex + direction;
+            if (newIndex >= 0) {
+                 state.currentCardIndex = newIndex;
+                 renderCard();
+            }
         }
         
         function processContent(html) {
-             // Replace Anki's image syntax with standard HTML img tags
-            return html.replace(/<img src="(.+?)"\s*\/?>/g, (match, src) => {
-                if (mediaFiles[src]) {
-                    return `<img src="${mediaFiles[src]}" alt="${src}">`;
-                }
-                return `[Imagem ${src} não encontrada]`;
+            return html.replace(/<img src="(.+?)"\s*\/?>/g, (match, src) => 
+                state.mediaFiles[src] ? `<img src="${state.mediaFiles[src]}" alt="${src}">` : `[Imagem ${src} não encontrada]`
+            );
+        }
+    </script>
+</body>
+</html>
+
             });
         }
         
